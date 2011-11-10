@@ -94,7 +94,37 @@ Following another user (naive)
 Concurrency ruins everything
 ============================
 
-* read 
+``alice → bob → carol``
+
+* (``a→b``) read ``bob``
+* (``b→c``) read ``bob``
+* (``b→c``) write modified ``bob``
+* (``a→b``) write modified ``bob``
+* Last write wins, ``bob`` is not friends with ``carol`` :(
+
+Sibling Rivalry
+===============
+
+* If ``allow_mult`` is on, the next read of ``bob`` will
+  have two siblings (``[a→b, b→c]``) because they descend
+  from the same vector clock.
+* Default strategy is "last write wins". This strategy often
+  leads to pain.
+
+How to fix?!
+============
+
+* Statebox (or equivalent) + Riak!
+
+What's Statebox?
+================
+
+* Opaque container
+* Serializes current state
+* With recent operations
+* Provides merge operation
+* Monad-like (but that's not important)
+
 
 Questions?
 ==========
