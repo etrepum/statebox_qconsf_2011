@@ -22,7 +22,8 @@ This talk isn't really about web. It's about how we
 model data for the web.
 
 HTTP itself is not the interesting part of our
-systems.
+systems. Mostly JSON over HTTP at the
+network boundary, nothing too clever!
 
 Mochi's Business
 ================
@@ -51,45 +52,259 @@ When does this break down?
 
 * Availability is important (we're global!)
 * Too expensive to scale vertically
-* If you think that sharding sucks
+* Schema evolution is hard
+* Sharding not always possible, and rarely fun
+
+Case Study: Friendwad
+=====================
+
+* A social graph aggregator
+* MochiGames, Facebook, Twitter, Myspace
+* Original implementation built on Mnesia
+* Mnesia causes us pain
+
+Friendwad Data Model
+====================
+
+* Twitter-like social digraph
+* Each user has a unique id
+* following: user ids that this user follows
+* followers: user ids that follow this user
+
+Adding a friend [1]
+===================
+
+TODO - Diagram
+
+::
+
+    id        | alice   | bob     |
+    followers | []      | []      |
+    following | []      | []      |
+
+Adding a friend [2]
+===================
+
+TODO - Diagram
+
+::
+
+    id        | alice   | bob     |
+    followers | []      | []      |
+    following | []      | [alice] |
+
+Adding a friend [3]
+===================
+
+TODO - Diagram
+
+::
+
+    id        | alice   | bob     |
+    followers | [bob]   | []      |
+    following | []      | [alice] |
+
+Mnesia Implementation
+=====================
+
+* Table in mnesia for user records (id, following, followers)
+* Multi-row transaction for each graph change
+* At least two rows in each transaction, possibly more (third-party
+  import)
+
+Why not Mnesia?
+===============
+
+* Mnesia issues beyond the scope of this talk :)
+* Anyway, we decided to migrate to Riak
 
 Riak
 ====
 
 * Great solution for many of our data problems (thanks Basho!)
+* Distributed eventually consistent key-value store
 * But not a complete solution
 
-Example: Denormalized Social Graph
-==================================
+Riak Migration
+==============
 
-* Keys are user ids
-* Initial values::
+* The simplest thing that could possibly work (incorrectly)
+* … appears correct with serialized glasses
+* Riak not transactional even for changes to a single row
 
-    [{following, []},
-     {followers, []}]
+Riak Migration Continued
+========================
 
-Following another user (idealized)
-==================================
+TODO - Facepalm
 
-``alice → bob`` (just the desired result)
+Eventual Inconsistency
+======================
 
-``alice``::
+* Popular user claimed they were missing entries in "followers"
+* Verified that they were missing by looking at our analytics built from
+  our transaction logs
+* Especially non-transactional with ``allow_mult=false``!
+* My face probably still has a palm-shaped dent
 
-  [{following, [bob]},
-   {followers, []}]
+Fix all of the things
+=====================
 
-``bob``::
+* Turn on ``allow_mult=true``
+* Easy fix if friends could only be added (set union)
+* But you can remove friends :(
+* Implemented statebox in anger to solve this problem
 
-  [{following, []},
-   {followers, [alice]}]
+Statebox Design Philosophy
+==========================
 
-Following another user (naive)
-==============================
+* Adding code to Riak should be avoided (maintenance)
+* The only option is to resolve conflicts on read
+* Growth should be bounded and configurable
+* Doesn't need to be language agnostic
+* Minimize magic
+
+What's Statebox?
+================
+
+* Opaque container
+* Serializes current state
+* With recent operations
+* Provides merge operation
+* Monad-like (not important)
+
+Statebox Terminology
+====================
+
+* ``op()`` :: N-ary function reference plus N-1 arguments
+* ``event()`` :: ``{timestamp(), op()}``
+
+.. class:: erlang
+
+::
+
+    {fun ordsets:add_element/2, [kitten]}
+
+Statebox Internals
+==================
+
+* Designed to be used with Erlang's external term format (``term_to_binary``)
+* Serializes function references, so is bound to exported code
+* Prototyped in friendwad, but immediately extracted it because we had
+  other projects that would need it
+* Open sourced because I couldn't find anything else like it
+
+Statebox Theory
+===============
+
+* Statebox algorithm can be used as-is with any eventually consistent
+  KV store
+* Similar to paper on `CRDT`_ (Convergent / Commutative Replicated
+  Data Types)
+* Stores current value plus a (configurably) bounded event queue
+* Event queue is bound by length and can expire events by age
+
+.. _`CRDT`: http://hal.archives-ouvertes.fr/inria-00555588/
+
+Statebox Example [1]
+====================
+
+TODO - Diagram
+
+::
+
+   A     :: [kitten]
+   [{1, Union([kitten])}]
+
+Statebox Example [2]
+====================
+
+TODO - Diagram
+
+::
+
+   A     :: [kitten]
+   [{1, Union([kitten])}]
+
+   B     :: [puppy]
+   [{2, Union([puppy])}]
+
+Statebox Example [3]
+====================
+
+TODO - Diagram
+
+::
+
+   A     :: [kitten]
+   [{1, Union([kitten])}]
+
+   B     :: [puppy]
+   [{2, Union([puppy])}]
+
+   [A,B] :: [kitten, puppy]
+   [{1, Union([kitten])},
+    {2, Union([puppy])}]
+
+Statebox Merge
+==============
+
+* B is newer, so use its value as the basis
+* Merge sort event queues
+* Apply ops in order from the beginning
+
+Statebox Merge [1]
+==================
+
+TODO - Diagram
+
+::
+
+  Use B's value (arbitrarily newest)
+
+              [puppy]
+
+  Value = [puppy]
+
+Statebox Merge [2]
+==================
+
+TODO - Diagram
+
+::
+
+  Apply ops oldest to newest (T=1)
+
+        union([puppy], [kitten])
+
+  Value = [kitten, puppy]
+
+Statebox Merge [3]
+==================
+
+TODO - Diagram
+
+::
+
+  Apply ops oldest to newest (T=2)
+
+  union(union([puppy], [kitten]), [puppy])
+
+  Value = [kitten, puppy]
+
+
+Interleaving for Fail
+=====================
+
+* To simulate failure we need multiple concurrent operations
+* ``alice → bob`` and ``bob → carol`` will be interleaved
+
+``alice → bob`` dissected
+=========================
 
 * read ``alice``
-* write modified ``alice``
+* write modified ``alice`` (following union [bob])
 * read ``bob``
-* write modified ``bob``
+* write modified ``bob`` (followers union [alice])
 
 Concurrency ruins everything
 ============================
@@ -115,25 +330,6 @@ How to fix?!
 ============
 
 * Riak (or equivalent) + Statebox (or equivalent)!
-
-What's Statebox?
-================
-
-* Opaque container
-* Serializes current state
-* With recent operations
-* Provides merge operation
-* Monad-like (but that's not important)
-
-Statebox Theory
-===============
-
-* Statebox algorithm can be used as-is with any eventually consistent
-  KV store
-* Similar to paper on `CRDT`_ (Convergent / Commutative Replicated
-  Data Types)
-
-.. _`CRDT`: http://hal.archives-ouvertes.fr/inria-00555588/
 
 Declarative (ordsets)
 =====================
