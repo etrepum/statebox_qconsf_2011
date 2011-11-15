@@ -21,7 +21,7 @@ var isOp = navigator.userAgent.indexOf('Opera') > -1 ? 1 : 0;
 var isGe = navigator.userAgent.indexOf('Gecko') > -1 && navigator.userAgent.indexOf('Safari') < 1 ? 1 : 0;
 
 function hasClass(object, className) {
-	if (!object.className) return false;
+	if (!object.className || typeof(object.className) !== 'string') return false;
 	return (object.className.search('(^|\\s)' + className + '(\\s|$)') != -1);
 }
 
@@ -586,5 +586,5 @@ function XXX_syntaxhighlighter_init() {
             ).replace(/\blight /, ';light: true');
         SyntaxHighlighter.highlight(null, node);
     });
-    
+
 };

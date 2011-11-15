@@ -33,3 +33,5 @@ body {
 #controls #navLinks a { background: transparent; }
 #controls #navList #jumplist { background: transparent; }
 .keyoff { color: rgb(200, 200, 200); }
+svg { margin-top: 2px; }
+img { margin-top: 2px; }

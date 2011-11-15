@@ -38,6 +38,7 @@ Just a few years ago...
 * Millions of tuples was big
 * Scale up vertically
 * Single master SQL databases
+* (Still works great for most companies)
 
 Why was this easy?
 ==================
@@ -59,7 +60,7 @@ Case Study: Friendwad
 =====================
 
 * A social graph aggregator
-* MochiGames, Facebook, Twitter, Myspace
+* MochiGames, Facebook, Twitter, Myspace (oops!)
 * Original implementation built on Mnesia
 * Mnesia causes us pain
 
@@ -71,38 +72,11 @@ Friendwad Data Model
 * following: user ids that this user follows
 * followers: user ids that follow this user
 
-Adding a friend [1]
-===================
+Friendwad Diagram
+=================
 
-TODO - Diagram
-
-::
-
-    id        | alice   | bob     |
-    followers | []      | []      |
-    following | []      | []      |
-
-Adding a friend [2]
-===================
-
-TODO - Diagram
-
-::
-
-    id        | alice   | bob     |
-    followers | []      | []      |
-    following | []      | [alice] |
-
-Adding a friend [3]
-===================
-
-TODO - Diagram
-
-::
-
-    id        | alice   | bob     |
-    followers | [bob]   | []      |
-    following | []      | [alice] |
+.. raw:: html
+   :file: svg/datamodel.svg
 
 Mnesia Implementation
 =====================
@@ -135,7 +109,7 @@ Riak Migration
 Riak Migration Continued
 ========================
 
-TODO - Facepalm
+.. image:: img/facepalm.jpg
 
 Eventual Inconsistency
 ======================
@@ -146,13 +120,172 @@ Eventual Inconsistency
 * Especially non-transactional with ``allow_mult=false``!
 * My face probably still has a palm-shaped dent
 
+Version Terminology
+===================
+
+* Client ``a`` reads version ``o`` (original state)
+* Transform from client ``a`` on ``o`` produces version ``ao``
+* Think function application ``a(o())``
+
+Adding a friend [1]
+===================
+
+Original state ``o`` for ``alice``, ``bob`` on read
+
+::
+
+    id        | alice   | bob     |
+    followers | []      | []      |
+    following | []      | []      |
+    version   | o       | o       |
+
+Adding a friend [2]
+===================
+
+Write modified ``bob`` at version ``ao``
+
+::
+
+    id        | alice   | bob     |
+    followers | []      | []      |
+    following | []      | [alice] |
+    version   | o       | ao      |
+
+Adding a friend [3]
+===================
+
+Write modified ``alice`` at version ``ao``
+
+::
+
+    id        | alice   | bob     |
+    followers | [bob]   | []      |
+    following | []      | [alice] |
+    version   | ao      | ao      |
+
+Interleaving for Fail
+=====================
+
+* To simulate failure we need multiple concurrent operations
+* ``a`` is ``alice → bob``
+* ``b`` is ``bob → carol``
+
+Concurrency Pains [1]
+=====================
+
+``alice → bob`` (``a``) initial state
+
+::
+
+    id        | alice   | bob     | carol |
+    followers | []      | []      | []    |
+    following | []      | []      | []    |
+    version   | o       | o       | o     |
+
+Concurrency Pains [2]
+=====================
+
+``bob → carol`` (``b``) initial state (all look same!)
+
+::
+
+    id        | alice   | bob     | carol |
+    followers | []      | []      | []    |
+    following | []      | []      | []    |
+    version   | o       | o       | o     |
+
+Concurrency Pains [3]
+=====================
+
+``bob → carol`` writes to ``bob``
+
+::
+
+    id        | alice   | bob     | carol |
+    followers | []      | []      | []    |
+    following | []      | [carol] | []    |
+    version   | o       | bo      | o     |
+
+Concurrency Pains [4]
+=====================
+
+``alice → bob`` writes to ``alice``
+
+::
+
+    id        | alice   | bob     | carol |
+    followers | []      | []      | []    |
+    following | [bob]   | [carol] | []    |
+    version   | ao      | bo      | o     |
+
+Concurrency Pains [5]
+=====================
+
+``alice → bob`` writes to ``bob``
+
+::
+
+    id        | alice   | bob     | carol |
+    followers | []      | [alice] | []    |
+    following | [bob]   | []      | []    |
+    version   | ao      | ao      | o     |
+
+Concurrency Pains [6]
+=====================
+
+``bob → carol`` writes to ``carol``
+
+::
+
+    id        | alice   | bob     | carol |
+    followers | []      | [alice] | [bob] |
+    following | [bob]   | []      | []    |
+    version   | ao      | ao      | bo    |
+
+Concurrency Ruins Everything
+============================
+
+::
+
+    W     W      W
+    W        W  W     W
+                  '.  W
+      .-""-._     \ \.--|
+     /       "-..__) .-'
+    |     _         /
+    \'-.__,   .__.,'
+     `'----'._\--'
+    VVVVVVVVVVVVVVVVVVVVV
+
+Sibling Rivalry
+===============
+
+* If ``allow_mult`` is on, the next read of ``bob`` will
+  have two siblings (``[ao, bo]``) because they descend
+  from the same vector clock.
+* Default strategy is "last write wins", also known as
+  pain
+
+Simple fix?
+===========
+
+Merging ``ao`` and ``bo`` is easy! Just union over
+``followers`` and ``following``.
+
+Simple fix? NOPE!
+=================
+
+But edges are not insert-only! That ruins everything.
+
+It's better, but any inconsistency is just pain
+waiting to happen.
+
 Fix all of the things
 =====================
 
 * Turn on ``allow_mult=true``
-* Easy fix if friends could only be added (set union)
-* But you can remove friends :(
-* Implemented statebox in anger to solve this problem
+* Implemented statebox in anger to solve the rest
+  of the problem
 
 Statebox Design Philosophy
 ==========================
@@ -178,7 +311,7 @@ Statebox Terminology
 * ``op()`` :: N-ary function reference plus N-1 arguments
 * ``event()`` :: ``{timestamp(), op()}``
 
-.. class:: erlang
+.. class:: light erlang
 
 ::
 
@@ -189,8 +322,7 @@ Statebox Internals
 
 * Designed to be used with Erlang's external term format (``term_to_binary``)
 * Serializes function references, so is bound to exported code
-* Prototyped in friendwad, but immediately extracted it because we had
-  other projects that would need it
+* Prototyped in friendwad, but immediately extracted
 * Open sourced because I couldn't find anything else like it
 
 Statebox Theory
@@ -208,7 +340,7 @@ Statebox Theory
 Statebox Example [1]
 ====================
 
-TODO - Diagram
+.. class:: light erlang
 
 ::
 
@@ -218,7 +350,7 @@ TODO - Diagram
 Statebox Example [2]
 ====================
 
-TODO - Diagram
+.. class:: light erlang
 
 ::
 
@@ -231,7 +363,7 @@ TODO - Diagram
 Statebox Example [3]
 ====================
 
-TODO - Diagram
+.. class:: light erlang
 
 ::
 
@@ -255,11 +387,11 @@ Statebox Merge
 Statebox Merge [1]
 ==================
 
-TODO - Diagram
+Use B's value (arbitrarily newest)
+
+.. class:: light erlang
 
 ::
-
-  Use B's value (arbitrarily newest)
 
               [puppy]
 
@@ -268,11 +400,11 @@ TODO - Diagram
 Statebox Merge [2]
 ==================
 
-TODO - Diagram
+Apply ops oldest to newest (T=1)
+
+.. class:: light erlang
 
 ::
-
-  Apply ops oldest to newest (T=1)
 
         union([puppy], [kitten])
 
@@ -281,60 +413,20 @@ TODO - Diagram
 Statebox Merge [3]
 ==================
 
-TODO - Diagram
+Apply ops oldest to newest (T=2)
+
+.. class:: light erlang
 
 ::
-
-  Apply ops oldest to newest (T=2)
 
   union(union([puppy], [kitten]), [puppy])
 
   Value = [kitten, puppy]
 
-
-Interleaving for Fail
-=====================
-
-* To simulate failure we need multiple concurrent operations
-* ``alice → bob`` and ``bob → carol`` will be interleaved
-
-``alice → bob`` dissected
-=========================
-
-* read ``alice``
-* write modified ``alice`` (following union [bob])
-* read ``bob``
-* write modified ``bob`` (followers union [alice])
-
-Concurrency ruins everything
-============================
-
-``alice → bob → carol``
-
-* (``a→b``) read ``bob``
-* (``b→c``) read ``bob``
-* (``b→c``) write modified ``bob``
-* (``a→b``) write modified ``bob``
-* Last write wins, ``bob`` is not friends with ``carol``
-
-Sibling Rivalry
-===============
-
-* If ``allow_mult`` is on, the next read of ``bob`` will
-  have two siblings (``[a→b, b→c]``) because they descend
-  from the same vector clock.
-* Default strategy is "last write wins". This strategy often
-  leads to pain.
-
-How to fix?!
-============
-
-* Riak (or equivalent) + Statebox (or equivalent)!
-
 Declarative (ordsets)
 =====================
 
-.. class:: erlang
+.. class:: light erlang
 
 ::
 
@@ -342,13 +434,13 @@ Declarative (ordsets)
     Empty = statebox:new(fun () -> [] end),
     A = statebox:modify({Add, [a]}, Empty),
     B = statebox:modify({Add, [b]}, Empty),
-    Resolved = statebox:merge([A, B]),
-    statebox:value(Resolved) =:= [a, b].
+    AB = statebox:merge([A, B]),
+    statebox:value(AB) =:= [a, b].
 
 Composable (orddict of ordsets)
 ===============================
 
-.. class:: erlang
+.. class:: light erlang
 
 ::
 
@@ -360,14 +452,14 @@ Composable (orddict of ordsets)
     B = statebox:modify([Union(following, [b]),
                          Union(followers, [d])],
                         Empty),
-    Resolved = statebox:merge([A, B]),
-    statebox:value(Resolved) =:= [{followers, [c, d]},
-                                  {following, [b]}].
+    AB = statebox:merge([A, B]),
+    statebox:value(AB) =:= [{followers, [c, d]},
+                            {following, [b]}].
 
 statebox_riak wrapper
 =====================
 
-.. class:: erlang
+.. class:: light erlang
 
 ::
 
@@ -403,7 +495,7 @@ Repeatable Operations
 What about non-repeatable operations?
 =====================================
 
-* Many can be built on top of repeatable operations
+* Many can be transformed to repeatable operations
 * ``statebox_counter`` is one example
 
 statebox_counter
@@ -413,6 +505,7 @@ statebox_counter
 * ``[{{Timestamp, Ident}, Delta}]``
 * ``Ident`` is just a unique-ish identifier (node counter, random
   number, etc.)
+* Well tested proof of concept, but not in production use
 
 statebox_counter optimization
 =============================
@@ -420,6 +513,46 @@ statebox_counter optimization
 * Prevent unbounded growth by coalescing old events into a single
   event with a fixed ``Ident``
 * Events older than this are ignored
+
+Other statebox usage
+====================
+
+* achievements
+* scorewad (via recordset)
+
+achievements
+============
+
+* Manages achievements earned in games
+* orddict of ``{Achievement, Timestamp}``
+* Stores to two keys: ``User``, ``User_Game``
+
+achievements orddict
+====================
+
+Store oldest entry for achievement.
+
+.. class:: light erlang
+
+::
+
+    f_store_min(Key, New) ->
+        {fun ?MODULE:op_store_min/3, [Key, New]}.
+
+    op_store_min(Key, New, D) ->
+        orddict:update(
+            Key,
+            fun (Old) -> min(Old, New) end,
+            New,
+            D).
+
+scorewad
+========
+
+* Manages high score boards for games
+* Keeps top 50 scores per game for day, week, month, all time
+* Also stores scores per user for social leaderboards
+* Built recordset to migrate some of this to riak + statebox
 
 Better than Statebox
 ====================
@@ -443,9 +576,13 @@ Questions?
 * Twitter: `@etrepum`_
 * Mochi Media: `www.mochimedia.com`_
 * Slides: `etrepum.github.com/statebox_qconsf_2011`_
-* http://git.io/statebox
-* http://git.io/statebox_riak
+* `git.io/statebox`_
+* `git.io/statebox_riak`_
+* `git.io/recordset`_
 
+.. _`git.io/statebox`: http://git.io/statebox
+.. _`git.io/statebox_riak`: http://git.io/statebox_riak
+.. _`git.io/recordset`: http://git.io/recordset
 .. _`www.mochimedia.com`: http://www.mochimedia.com/
 .. _`etrepum.github.com/statebox_qconsf_2011`: http://etrepum.github.com/statebox_qconsf_2011
 .. _`@etrepum`: http://twitter.com/etrepum
