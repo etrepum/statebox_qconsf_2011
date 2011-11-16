@@ -22,7 +22,7 @@ This talk isn't really about web. It's about how we
 model data for the web.
 
 HTTP itself is not the interesting part of our
-systems. Mostly JSON over HTTP at the
+systems. Our systems are mostly JSON over HTTP at the
 network boundary, nothing too clever!
 
 Mochi's Business
