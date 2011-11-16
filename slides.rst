@@ -32,8 +32,8 @@ Mochi's Business
 * Ads, analytics, virtual currency, social, scores, etc.
 * Terabytes of data to report on
 
-Just a few years ago...
-=======================
+Just a few years ago…
+=====================
 
 * Millions of tuples was big
 * Scale up vertically
@@ -48,8 +48,8 @@ Why was this easy?
 * Single node systems do not have network partitions!
 * Most businesses can probably still get away with this
 
-When does this break down?
-==========================
+Why does this break?
+====================
 
 * Availability is important (we're global!)
 * Too expensive to scale vertically
@@ -242,8 +242,10 @@ Concurrency Pains [6]
     following | [bob]   | []      | []    |
     version   | ao      | ao      | bo    |
 
-Concurrency Ruins Everything
-============================
+FAIL
+====
+
+Concurrency ruins everything.
 
 ::
 
@@ -337,6 +339,39 @@ Statebox Theory
 
 .. _`CRDT`: http://hal.archives-ouvertes.fr/inria-00555588/
 
+Declarative (ordsets)
+=====================
+
+.. class:: light erlang
+
+::
+
+    Add = fun ordsets:add_element/2,
+    Empty = statebox:new(fun () -> [] end),
+    A = statebox:modify({Add, [a]}, Empty),
+    B = statebox:modify({Add, [b]}, Empty),
+    AB = statebox:merge([A, B]),
+    statebox:value(AB) =:= [a, b].
+
+Composable
+==========
+
+.. class:: light erlang
+
+::
+
+    Empty = statebox_orddict:from_values([]),
+    Union = fun statebox_orddict:f_union/2,
+    A = statebox:modify([Union(following, [b]),
+                         Union(followers, [c])],
+                        Empty),
+    B = statebox:modify([Union(following, [b]),
+                         Union(followers, [d])],
+                        Empty),
+    AB = statebox:merge([A, B]),
+    statebox:value(AB) =:= [{followers, [c, d]},
+                            {following, [b]}].
+
 Statebox Example [1]
 ====================
 
@@ -393,7 +428,7 @@ Use B's value (arbitrarily newest)
 
 ::
 
-              [puppy]
+                                 [puppy]
 
   Value = [puppy]
 
@@ -406,7 +441,7 @@ Apply ops oldest to newest (T=1)
 
 ::
 
-        union([puppy], [kitten])
+                 union([kitten], [puppy])
 
   Value = [kitten, puppy]
 
@@ -419,42 +454,9 @@ Apply ops oldest to newest (T=2)
 
 ::
 
-  union(union([puppy], [kitten]), [puppy])
+  union([puppy], union([kitten], [puppy]))
 
   Value = [kitten, puppy]
-
-Declarative (ordsets)
-=====================
-
-.. class:: light erlang
-
-::
-
-    Add = fun ordsets:add_element/2,
-    Empty = statebox:new(fun () -> [] end),
-    A = statebox:modify({Add, [a]}, Empty),
-    B = statebox:modify({Add, [b]}, Empty),
-    AB = statebox:merge([A, B]),
-    statebox:value(AB) =:= [a, b].
-
-Composable (orddict of ordsets)
-===============================
-
-.. class:: light erlang
-
-::
-
-    Empty = statebox_orddict:from_values([]),
-    Union = fun statebox_orddict:f_union/2,
-    A = statebox:modify([Union(following, [b]),
-                         Union(followers, [c])],
-                        Empty),
-    B = statebox:modify([Union(following, [b]),
-                         Union(followers, [d])],
-                        Empty),
-    AB = statebox:merge([A, B]),
-    statebox:value(AB) =:= [{followers, [c, d]},
-                            {following, [b]}].
 
 statebox_riak wrapper
 =====================
@@ -464,7 +466,7 @@ statebox_riak wrapper
 ::
 
     %% bob → alice, bob → carol
-    S = statebox_riak:new([{riakc_pb_socket, Pid},
+    S = statebox_riak:new([{riakc_pb_socket, P},
                            {expire_ms, 5000},
                            {max_queue, 50}]),
     Union = fun statebox_orddict:f_union/2,
@@ -492,8 +494,8 @@ Repeatable Operations
 * NOT most list operations (ordered lists may be ok!)
 * NOT most integer operations
 
-What about non-repeatable operations?
-=====================================
+Non-repeatable ops?
+===================
 
 * Many can be transformed to repeatable operations
 * ``statebox_counter`` is one example
@@ -507,8 +509,8 @@ statebox_counter
   number, etc.)
 * Well tested proof of concept, but not in production use
 
-statebox_counter optimization
-=============================
+counter optimizations
+=====================
 
 * Prevent unbounded growth by coalescing old events into a single
   event with a fixed ``Ident``
@@ -549,26 +551,54 @@ Store oldest entry for achievement.
 scorewad
 ========
 
-* Manages high score boards for games
+* Manages high score boards for > 15,000 games
 * Keeps top 50 scores per game for day, week, month, all time
 * Also stores scores per user for social leaderboards
 * Built recordset to migrate some of this to riak + statebox
 
-Better than Statebox
-====================
+recordset
+=========
+
+An optionally fixed-size ordered set of complex terms.
+
+* User defined identity
+* User defined sorting
+* Optional and efficient fixed-sizedness
+
+recordset example (trivial)
+===========================
+
+.. class:: light erlang
+
+::
+
+    Empty = recordset:new(fun erlang:'=:='/2,
+                          fun erlang:'<'/2,
+                          [{max_size, 2}]),
+    Full = lists:foldl(fun recordset:add/2,
+                       Empty,
+                       lists:seq(300, 400)),
+    [399, 400] =:= recordset:to_list(Full).
+
+What's next?
+============
+
+* statebox already does what we want it to
+* More helper modules or projects will be added over time
+
+Better than Statebox?
+=====================
 
 * We'd all be better off if this kind of data structure was built-in
   to the database
+* Higher level APIs! KV is fine but I want more from my database
 * Redis-like features, but concurrent and multi-node
-* Higher level APIs
 
-Why could Riak do it better
+Why Riak could do it better
 ===========================
 
-* The database could serialize access to a given key per node
-* The database could automatically prune/expire because it knows
-  the state of the cluster
-* Can leverage information already present in vector clocks
+* Simple clients: DB can reconcile state before return
+* Efficiency: Can store less data (ring state, forced serialization, vclocks)
 
 Questions?
 ==========
