@@ -1,0 +1,957 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.7: http://docutils.sourceforge.net/" />
+<meta name="version" content="S5 1.1" />
+<title>Eventually Consistent HTTP with Statebox and Riak</title>
+<meta name="author" content="Bob Ippolito (&#64;etrepum)" />
+<meta name="date" content="November 2011" />
+<style type="text/css">
+
+/*
+:Author: David Goodger (goodger@python.org)
+:Id: $Id: html4css1.css 6253 2010-03-02 00:24:53Z milde $
+:Copyright: This stylesheet has been placed in the public domain.
+
+Default cascading style sheet for the HTML output of Docutils.
+
+See http://docutils.sf.net/docs/howto/html-stylesheets.html for how to
+customize this style sheet.
+*/
+
+/* used to remove borders from tables and images */
+.borderless, table.borderless td, table.borderless th {
+  border: 0 }
+
+table.borderless td, table.borderless th {
+  /* Override padding for "table.docutils td" with "! important".
+     The right padding separates the table cells. */
+  padding: 0 0.5em 0 0 ! important }
+
+.first {
+  /* Override more specific margin styles with "! important". */
+  margin-top: 0 ! important }
+
+.last, .with-subtitle {
+  margin-bottom: 0 ! important }
+
+.hidden {
+  display: none }
+
+a.toc-backref {
+  text-decoration: none ;
+  color: black }
+
+blockquote.epigraph {
+  margin: 2em 5em ; }
+
+dl.docutils dd {
+  margin-bottom: 0.5em }
+
+/* Uncomment (and remove this text!) to get bold-faced definition list terms
+dl.docutils dt {
+  font-weight: bold }
+*/
+
+div.abstract {
+  margin: 2em 5em }
+
+div.abstract p.topic-title {
+  font-weight: bold ;
+  text-align: center }
+
+div.admonition, div.attention, div.caution, div.danger, div.error,
+div.hint, div.important, div.note, div.tip, div.warning {
+  margin: 2em ;
+  border: medium outset ;
+  padding: 1em }
+
+div.admonition p.admonition-title, div.hint p.admonition-title,
+div.important p.admonition-title, div.note p.admonition-title,
+div.tip p.admonition-title {
+  font-weight: bold ;
+  font-family: sans-serif }
+
+div.attention p.admonition-title, div.caution p.admonition-title,
+div.danger p.admonition-title, div.error p.admonition-title,
+div.warning p.admonition-title {
+  color: red ;
+  font-weight: bold ;
+  font-family: sans-serif }
+
+/* Uncomment (and remove this text!) to get reduced vertical space in
+   compound paragraphs.
+div.compound .compound-first, div.compound .compound-middle {
+  margin-bottom: 0.5em }
+
+div.compound .compound-last, div.compound .compound-middle {
+  margin-top: 0.5em }
+*/
+
+div.dedication {
+  margin: 2em 5em ;
+  text-align: center ;
+  font-style: italic }
+
+div.dedication p.topic-title {
+  font-weight: bold ;
+  font-style: normal }
+
+div.figure {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+div.footer, div.header {
+  clear: both;
+  font-size: smaller }
+
+div.line-block {
+  display: block ;
+  margin-top: 1em ;
+  margin-bottom: 1em }
+
+div.line-block div.line-block {
+  margin-top: 0 ;
+  margin-bottom: 0 ;
+  margin-left: 1.5em }
+
+div.sidebar {
+  margin: 0 0 0.5em 1em ;
+  border: medium outset ;
+  padding: 1em ;
+  background-color: #ffffee ;
+  width: 40% ;
+  float: right ;
+  clear: right }
+
+div.sidebar p.rubric {
+  font-family: sans-serif ;
+  font-size: medium }
+
+div.system-messages {
+  margin: 5em }
+
+div.system-messages h1 {
+  color: red }
+
+div.system-message {
+  border: medium outset ;
+  padding: 1em }
+
+div.system-message p.system-message-title {
+  color: red ;
+  font-weight: bold }
+
+div.topic {
+  margin: 2em }
+
+h1.section-subtitle, h2.section-subtitle, h3.section-subtitle,
+h4.section-subtitle, h5.section-subtitle, h6.section-subtitle {
+  margin-top: 0.4em }
+
+h1.title {
+  text-align: center }
+
+h2.subtitle {
+  text-align: center }
+
+hr.docutils {
+  width: 75% }
+
+img.align-left, .figure.align-left, object.align-left {
+  clear: left ;
+  float: left ;
+  margin-right: 1em }
+
+img.align-right, .figure.align-right, object.align-right {
+  clear: right ;
+  float: right ;
+  margin-left: 1em }
+
+img.align-center, .figure.align-center, object.align-center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.align-left {
+  text-align: left }
+
+.align-center {
+  clear: both ;
+  text-align: center }
+
+.align-right {
+  text-align: right }
+
+/* reset inner alignment in figures */
+div.align-right {
+  text-align: left }
+
+/* div.align-center * { */
+/*   text-align: left } */
+
+ol.simple, ul.simple {
+  margin-bottom: 1em }
+
+ol.arabic {
+  list-style: decimal }
+
+ol.loweralpha {
+  list-style: lower-alpha }
+
+ol.upperalpha {
+  list-style: upper-alpha }
+
+ol.lowerroman {
+  list-style: lower-roman }
+
+ol.upperroman {
+  list-style: upper-roman }
+
+p.attribution {
+  text-align: right ;
+  margin-left: 50% }
+
+p.caption {
+  font-style: italic }
+
+p.credits {
+  font-style: italic ;
+  font-size: smaller }
+
+p.label {
+  white-space: nowrap }
+
+p.rubric {
+  font-weight: bold ;
+  font-size: larger ;
+  color: maroon ;
+  text-align: center }
+
+p.sidebar-title {
+  font-family: sans-serif ;
+  font-weight: bold ;
+  font-size: larger }
+
+p.sidebar-subtitle {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+p.topic-title {
+  font-weight: bold }
+
+pre.address {
+  margin-bottom: 0 ;
+  margin-top: 0 ;
+  font: inherit }
+
+pre.literal-block, pre.doctest-block {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+span.classifier {
+  font-family: sans-serif ;
+  font-style: oblique }
+
+span.classifier-delimiter {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+span.interpreted {
+  font-family: sans-serif }
+
+span.option {
+  white-space: nowrap }
+
+span.pre {
+  white-space: pre }
+
+span.problematic {
+  color: red }
+
+span.section-subtitle {
+  /* font-size relative to parent (h1..h6 element) */
+  font-size: 80% }
+
+table.citation {
+  border-left: solid 1px gray;
+  margin-left: 1px }
+
+table.docinfo {
+  margin: 2em 4em }
+
+table.docutils {
+  margin-top: 0.5em ;
+  margin-bottom: 0.5em }
+
+table.footnote {
+  border-left: solid 1px black;
+  margin-left: 1px }
+
+table.docutils td, table.docutils th,
+table.docinfo td, table.docinfo th {
+  padding-left: 0.5em ;
+  padding-right: 0.5em ;
+  vertical-align: top }
+
+table.docutils th.field-name, table.docinfo th.docinfo-name {
+  font-weight: bold ;
+  text-align: left ;
+  white-space: nowrap ;
+  padding-left: 0 }
+
+h1 tt.docutils, h2 tt.docutils, h3 tt.docutils,
+h4 tt.docutils, h5 tt.docutils, h6 tt.docutils {
+  font-size: 100% }
+
+ul.auto-toc {
+  list-style-type: none }
+
+</style>
+<!-- configuration parameters -->
+<meta name="defaultView" content="slideshow" />
+<meta name="controlVis" content="hidden" />
+<!-- style sheet links -->
+<script src="ui/mochikit/slides.js" type="text/javascript"></script>
+<link rel="stylesheet" href="ui/mochikit/slides.css"
+      type="text/css" media="projection" id="slideProj" />
+<link rel="stylesheet" href="ui/mochikit/outline.css"
+      type="text/css" media="screen" id="outlineStyle" />
+<link rel="stylesheet" href="ui/mochikit/print.css"
+      type="text/css" media="print" id="slidePrint" />
+<link rel="stylesheet" href="ui/mochikit/opera.css"
+      type="text/css" media="projection" id="operaFix" />
+
+<style type="text/css">
+#currentSlide {display: none;}
+</style>
+</head>
+<body>
+<div class="layout">
+<div id="controls"></div>
+<div id="currentSlide"></div>
+<div id="header">
+
+</div>
+<div id="footer">
+<h1>Eventually Consistent HTTP with Statebox and Riak</h1>
+
+</div>
+</div>
+<div class="presentation">
+<div class="slide" id="slide0">
+<h1 class="title">Eventually Consistent HTTP with Statebox and Riak</h1>
+<table class="docinfo" frame="void" rules="none">
+<col class="docinfo-name" />
+<col class="docinfo-content" />
+<tbody valign="top">
+<tr><th class="docinfo-name">Author:</th>
+<td>Bob Ippolito (<a class="reference external" href="http://twitter.com/etrepum">&#64;etrepum</a>)</td></tr>
+<tr><th class="docinfo-name">Date:</th>
+<td>November 2011</td></tr>
+<tr class="field"><th class="docinfo-name">Venue:</th><td class="field-body">QCon San Francisco 2011</td>
+</tr>
+</tbody>
+</table>
+<!-- Definitions of interpreted text roles (classes) for S5/HTML data. -->
+<!-- This data file has been placed in the public domain. -->
+<!-- Colours
+======= -->
+<!-- Text Sizes
+========== -->
+<!-- Display in Slides (Presentation Mode) Only
+========================================== -->
+<!-- Display in Outline Mode Only
+============================ -->
+<!-- Display in Print Only
+===================== -->
+<!-- Display in Handout Mode Only
+============================ -->
+<!-- Incremental Display
+=================== -->
+<!-- colors -->
+<!-- =========================== -->
+<!-- general useful commands -->
+<!-- =========================== -->
+<!-- closed bracket -->
+<!-- =========================== -->
+<!-- example block -->
+<!-- =========================== -->
+<!-- alert block -->
+<!-- =========================== -->
+<!-- columns -->
+<!-- =========================== -->
+<script type="text/javascript">
+    addLoadEvent(function () {
+        appendChildNodes(document.body,
+            DIV({id: "mochikit_logo", 'class': 'draggable'}));
+    });
+</script>
+
+</div>
+<div class="slide" id="introduction">
+<h1>Introduction</h1>
+<p>This talk isn't really about web. It's about how we
+model data for the web.</p>
+<p>HTTP itself is not the interesting part of our
+systems. Our systems are mostly JSON over HTTP at the
+network boundary, nothing too clever!</p>
+</div>
+<div class="slide" id="mochi-s-business">
+<h1>Mochi's Business</h1>
+<ul class="simple">
+<li>We provide platforms for Flash game developers</li>
+<li>Ads, analytics, virtual currency, social, scores, etc.</li>
+<li>Terabytes of data to report on</li>
+</ul>
+</div>
+<div class="slide" id="just-a-few-years-ago">
+<h1>Just a few years ago…</h1>
+<ul class="simple">
+<li>Millions of tuples was big</li>
+<li>Scale up vertically</li>
+<li>Single master SQL databases</li>
+<li>(Still works great for most companies)</li>
+</ul>
+</div>
+<div class="slide" id="why-was-this-easy">
+<h1>Why was this easy?</h1>
+<ul class="simple">
+<li>ACID is cheap on a single node</li>
+<li>Efficient to establish a total ordering for events</li>
+<li>Single node systems do not have network partitions!</li>
+<li>Most businesses can probably still get away with this</li>
+</ul>
+</div>
+<div class="slide" id="why-does-this-break">
+<h1>Why does this break?</h1>
+<ul class="simple">
+<li>Availability is important (we're global!)</li>
+<li>Too expensive to scale vertically</li>
+<li>Schema evolution is hard</li>
+<li>Sharding not always possible, and rarely fun</li>
+</ul>
+</div>
+<div class="slide" id="case-study-friendwad">
+<h1>Case Study: Friendwad</h1>
+<ul class="simple">
+<li>A social graph aggregator</li>
+<li>MochiGames, Facebook, Twitter, Myspace (oops!)</li>
+<li>Original implementation built on Mnesia</li>
+<li>Mnesia causes us pain</li>
+</ul>
+</div>
+<div class="slide" id="friendwad-data-model">
+<h1>Friendwad Data Model</h1>
+<ul class="simple">
+<li>Twitter-like social digraph</li>
+<li>Each user has a unique id</li>
+<li>following: user ids that this user follows</li>
+<li>followers: user ids that follow this user</li>
+</ul>
+</div>
+<div class="slide" id="friendwad-diagram">
+<h1>Friendwad Diagram</h1>
+<?xml version="1.0"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xl="http://www.w3.org/1999/xlink" version="1.1" viewBox="-7 8 315 238" width="315pt" height="238pt"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:date>2011-11-14 22:16Z</dc:date><!-- Produced by OmniGraffle Professional 5.3.6 --></metadata><defs><filter id="Shadow" filterUnits="userSpaceOnUse"><feGaussianBlur in="SourceAlpha" result="blur" stdDeviation="3.488"/><feOffset in="blur" result="offset" dx="0" dy="4"/><feFlood flood-color="black" flood-opacity=".75" result="flood"/><feComposite in="flood" in2="offset" operator="in"/></filter><font-face font-family="Helvetica" font-size="12" units-per-em="1000" underline-position="-75.683594" underline-thickness="49.316406" slope="0" x-height="522.94922" cap-height="717.28516" ascent="770.01953" descent="-229.98047" font-weight="500"><font-face-src><font-face-name name="Helvetica"/></font-face-src></font-face><marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledArrow_Marker" viewBox="-1 -4 10 8" markerWidth="10" markerHeight="8" color="black"><g><path d="M 8 0 L 0 -3 L 0 3 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/></g></marker><font-face font-family="Helvetica" font-size="12" units-per-em="1000" underline-position="-75.683594" underline-thickness="49.316406" slope="0" x-height="532.22656" cap-height="719.72656" ascent="770.01953" descent="-229.98047" font-weight="bold"><font-face-src><font-face-name name="Helvetica-Bold"/></font-face-src></font-face><marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledArrow_Marker_2" viewBox="-9 -4 10 8" markerWidth="10" markerHeight="8" color="black"><g><path d="M -8 0 L 0 3 L 0 -3 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/></g></marker></defs><g stroke="none" stroke-opacity="1" stroke-dasharray="none" fill="none" fill-opacity="1"><title>Canvas 1</title><rect fill="white" width="576" height="733"/><g><title>Layer 1</title><g><use xl:href="#id28_Graphic" filter="url(#Shadow)"/><use xl:href="#id46_Graphic" filter="url(#Shadow)"/><use xl:href="#id40_Graphic" filter="url(#Shadow)"/><use xl:href="#id41_Graphic" filter="url(#Shadow)"/></g><g id="id28_Graphic"><ellipse cx="72" cy="78" rx="54.000084" ry="36.000057" fill="white"/><ellipse cx="72" cy="78" rx="54.000084" ry="36.000057" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/><text transform="translate(33.8 71)" fill="black"><tspan font-family="Helvetica" font-size="12" font-weight="500" fill="black" x="25.195118" y="11" textLength="26.009766">Alice</tspan></text></g><g id="id46_Graphic"><ellipse cx="234" cy="78" rx="54.00009" ry="36.000057" fill="white"/><ellipse cx="234" cy="78" rx="54.00009" ry="36.000057" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/><text transform="translate(195.8 71)" fill="black"><tspan font-family="Helvetica" font-size="12" font-weight="500" x="27.52422" y="11" textLength="21.351562">Bob</tspan></text></g><line x1="126.500015" y1="78" x2="169.59998" y2="78" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/><text transform="translate(120 17)" fill="black"><tspan font-family="Helvetica" font-size="12" font-weight="bold" x=".0068359375" y="11" textLength="55.986328">Following</tspan></text><g id="id40_Graphic"><ellipse cx="67" cy="186" rx="54.000084" ry="36.000069" fill="white"/><ellipse cx="67" cy="186" rx="54.000084" ry="36.000069" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/><text transform="translate(28.8 179)" fill="black"><tspan font-family="Helvetica" font-size="12" font-weight="500" x="25.195118" y="11" textLength="26.009766">Alice</tspan></text></g><g id="id41_Graphic"><ellipse cx="229" cy="186" rx="54.00009" ry="36.000069" fill="white"/><ellipse cx="229" cy="186" rx="54.00009" ry="36.000069" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/><text transform="translate(190.8 179)" fill="black"><tspan font-family="Helvetica" font-size="12" font-weight="500" x="27.52422" y="11" textLength="21.351562">Bob</tspan></text></g><line x1="131.40001" y1="186.00002" x2="174.49997" y2="186.00002" marker-start="url(#FilledArrow_Marker_2)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" stroke-dasharray="4,4"/><text transform="translate(114.5 125)" fill="black"><tspan font-family="Helvetica" font-size="12" font-weight="bold" x=".4951172" y="11" textLength="56.009766">Followers</tspan></text></g></g></svg>
+</div>
+<div class="slide" id="mnesia-implementation">
+<h1>Mnesia Implementation</h1>
+<ul class="simple">
+<li>Table in mnesia for user records (id, following, followers)</li>
+<li>Multi-row transaction for each graph change</li>
+<li>At least two rows in each transaction, possibly more (third-party
+import)</li>
+</ul>
+</div>
+<div class="slide" id="why-not-mnesia">
+<h1>Why not Mnesia?</h1>
+<ul class="simple">
+<li>Mnesia issues beyond the scope of this talk :)</li>
+<li>Anyway, we decided to migrate to Riak</li>
+</ul>
+</div>
+<div class="slide" id="riak">
+<h1>Riak</h1>
+<ul class="simple">
+<li>Great solution for many of our data problems (thanks Basho!)</li>
+<li>Distributed eventually consistent key-value store</li>
+<li>But not a complete solution</li>
+</ul>
+</div>
+<div class="slide" id="riak-migration">
+<h1>Riak Migration</h1>
+<ul class="simple">
+<li>The simplest thing that could possibly work (incorrectly)</li>
+<li>… appears correct with serialized glasses</li>
+<li>Riak not transactional even for changes to a single row</li>
+</ul>
+</div>
+<div class="slide" id="riak-migration-continued">
+<h1>Riak Migration Continued</h1>
+<img alt="img/facepalm.jpg" src="img/facepalm.jpg" />
+</div>
+<div class="slide" id="eventual-inconsistency">
+<h1>Eventual Inconsistency</h1>
+<ul class="simple">
+<li>Popular user claimed they were missing entries in &quot;followers&quot;</li>
+<li>Verified that they were missing by looking at our analytics built from
+our transaction logs</li>
+<li>Especially non-transactional with <tt class="docutils literal">allow_mult=false</tt>!</li>
+<li>My face probably still has a palm-shaped dent</li>
+</ul>
+</div>
+<div class="slide" id="version-terminology">
+<h1>Version Terminology</h1>
+<ul class="simple">
+<li>Client <tt class="docutils literal">a</tt> reads version <tt class="docutils literal">o</tt> (original state)</li>
+<li>Transform from client <tt class="docutils literal">a</tt> on <tt class="docutils literal">o</tt> produces version <tt class="docutils literal">ao</tt></li>
+<li>Think function application <tt class="docutils literal"><span class="pre">a(o())</span></tt></li>
+</ul>
+</div>
+<div class="slide" id="adding-a-friend-1">
+<h1>Adding a friend [1]</h1>
+<p>Original state <tt class="docutils literal">o</tt> for <tt class="docutils literal">alice</tt>, <tt class="docutils literal">bob</tt> on read</p>
+<pre class="literal-block">
+id        | alice   | bob     |
+followers | []      | []      |
+following | []      | []      |
+version   | o       | o       |
+</pre>
+</div>
+<div class="slide" id="adding-a-friend-2">
+<h1>Adding a friend [2]</h1>
+<p>Write modified <tt class="docutils literal">bob</tt> at version <tt class="docutils literal">ao</tt></p>
+<pre class="literal-block">
+id        | alice   | bob     |
+followers | []      | []      |
+following | []      | [alice] |
+version   | o       | ao      |
+</pre>
+</div>
+<div class="slide" id="adding-a-friend-3">
+<h1>Adding a friend [3]</h1>
+<p>Write modified <tt class="docutils literal">alice</tt> at version <tt class="docutils literal">ao</tt></p>
+<pre class="literal-block">
+id        | alice   | bob     |
+followers | [bob]   | []      |
+following | []      | [alice] |
+version   | ao      | ao      |
+</pre>
+</div>
+<div class="slide" id="interleaving-for-fail">
+<h1>Interleaving for Fail</h1>
+<ul class="simple">
+<li>To simulate failure we need multiple concurrent operations</li>
+<li><tt class="docutils literal">a</tt> is <tt class="docutils literal">alice → bob</tt></li>
+<li><tt class="docutils literal">b</tt> is <tt class="docutils literal">bob → carol</tt></li>
+</ul>
+</div>
+<div class="slide" id="concurrency-pains-1">
+<h1>Concurrency Pains [1]</h1>
+<p><tt class="docutils literal">alice → bob</tt> (<tt class="docutils literal">a</tt>) initial state</p>
+<pre class="literal-block">
+id        | alice   | bob     | carol |
+followers | []      | []      | []    |
+following | []      | []      | []    |
+version   | o       | o       | o     |
+</pre>
+</div>
+<div class="slide" id="concurrency-pains-2">
+<h1>Concurrency Pains [2]</h1>
+<p><tt class="docutils literal">bob → carol</tt> (<tt class="docutils literal">b</tt>) initial state (all look same!)</p>
+<pre class="literal-block">
+id        | alice   | bob     | carol |
+followers | []      | []      | []    |
+following | []      | []      | []    |
+version   | o       | o       | o     |
+</pre>
+</div>
+<div class="slide" id="concurrency-pains-3">
+<h1>Concurrency Pains [3]</h1>
+<p><tt class="docutils literal">bob → carol</tt> writes to <tt class="docutils literal">bob</tt></p>
+<pre class="literal-block">
+id        | alice   | bob     | carol |
+followers | []      | []      | []    |
+following | []      | [carol] | []    |
+version   | o       | bo      | o     |
+</pre>
+</div>
+<div class="slide" id="concurrency-pains-4">
+<h1>Concurrency Pains [4]</h1>
+<p><tt class="docutils literal">alice → bob</tt> writes to <tt class="docutils literal">alice</tt></p>
+<pre class="literal-block">
+id        | alice   | bob     | carol |
+followers | []      | []      | []    |
+following | [bob]   | [carol] | []    |
+version   | ao      | bo      | o     |
+</pre>
+</div>
+<div class="slide" id="concurrency-pains-5">
+<h1>Concurrency Pains [5]</h1>
+<p><tt class="docutils literal">alice → bob</tt> writes to <tt class="docutils literal">bob</tt></p>
+<pre class="literal-block">
+id        | alice   | bob     | carol |
+followers | []      | [alice] | []    |
+following | [bob]   | []      | []    |
+version   | ao      | ao      | o     |
+</pre>
+</div>
+<div class="slide" id="concurrency-pains-6">
+<h1>Concurrency Pains [6]</h1>
+<p><tt class="docutils literal">bob → carol</tt> writes to <tt class="docutils literal">carol</tt></p>
+<pre class="literal-block">
+id        | alice   | bob     | carol |
+followers | []      | [alice] | [bob] |
+following | [bob]   | []      | []    |
+version   | ao      | ao      | bo    |
+</pre>
+</div>
+<div class="slide" id="fail">
+<h1>FAIL</h1>
+<p>Concurrency ruins everything.</p>
+<pre class="literal-block">
+W     W      W
+W        W  W     W
+              '.  W
+  .-&quot;&quot;-._     \ \.--|
+ /       &quot;-..__) .-'
+|     _         /
+\'-.__,   .__.,'
+ `'----'._\--'
+VVVVVVVVVVVVVVVVVVVVV
+</pre>
+</div>
+<div class="slide" id="sibling-rivalry">
+<h1>Sibling Rivalry</h1>
+<ul class="simple">
+<li>If <tt class="docutils literal">allow_mult</tt> is on, the next read of <tt class="docutils literal">bob</tt> will
+have two siblings (<tt class="docutils literal">[ao, bo]</tt>) because they descend
+from the same vector clock.</li>
+<li>Default strategy is &quot;last write wins&quot;, also known as
+pain</li>
+</ul>
+</div>
+<div class="slide" id="simple-fix">
+<h1>Simple fix?</h1>
+<p>Merging <tt class="docutils literal">ao</tt> and <tt class="docutils literal">bo</tt> is easy! Just union over
+<tt class="docutils literal">followers</tt> and <tt class="docutils literal">following</tt>.</p>
+</div>
+<div class="slide" id="simple-fix-nope">
+<h1>Simple fix? NOPE!</h1>
+<p>But edges are not insert-only! That ruins everything.</p>
+<p>It's better, but any inconsistency is just pain
+waiting to happen.</p>
+</div>
+<div class="slide" id="fix-all-of-the-things">
+<h1>Fix all of the things</h1>
+<ul class="simple">
+<li>Turn on <tt class="docutils literal">allow_mult=true</tt></li>
+<li>Implemented statebox in anger to solve the rest
+of the problem</li>
+</ul>
+</div>
+<div class="slide" id="statebox-design-philosophy">
+<h1>Statebox Design Philosophy</h1>
+<ul class="simple">
+<li>Adding code to Riak should be avoided (maintenance)</li>
+<li>The only option is to resolve conflicts on read</li>
+<li>Growth should be bounded and configurable</li>
+<li>Doesn't need to be language agnostic</li>
+<li>Minimize magic</li>
+</ul>
+</div>
+<div class="slide" id="what-s-statebox">
+<h1>What's Statebox?</h1>
+<ul class="simple">
+<li>Opaque container</li>
+<li>Serializes current state</li>
+<li>With recent operations</li>
+<li>Provides merge operation</li>
+<li>Monad-like (not important)</li>
+</ul>
+</div>
+<div class="slide" id="statebox-terminology">
+<h1>Statebox Terminology</h1>
+<ul class="simple">
+<li><tt class="docutils literal">op()</tt> :: N-ary function reference plus N-1 arguments</li>
+<li><tt class="docutils literal">event()</tt> :: <tt class="docutils literal"><span class="pre">{timestamp(),</span> <span class="pre">op()}</span></tt></li>
+</ul>
+<pre class="light erlang literal-block">
+{fun ordsets:add_element/2, [kitten]}
+</pre>
+</div>
+<div class="slide" id="statebox-internals">
+<h1>Statebox Internals</h1>
+<ul class="simple">
+<li>Designed to be used with Erlang's external term format (<tt class="docutils literal">term_to_binary</tt>)</li>
+<li>Serializes function references, so is bound to exported code</li>
+<li>Prototyped in friendwad, but immediately extracted</li>
+<li>Open sourced because I couldn't find anything else like it</li>
+</ul>
+</div>
+<div class="slide" id="statebox-theory">
+<h1>Statebox Theory</h1>
+<ul class="simple">
+<li>Statebox algorithm can be used as-is with any eventually consistent
+KV store</li>
+<li>Similar to paper on <a class="reference external" href="http://hal.archives-ouvertes.fr/inria-00555588/">CRDT</a> (Convergent / Commutative Replicated
+Data Types)</li>
+<li>Stores current value plus a (configurably) bounded event queue</li>
+<li>Event queue is bound by length and can expire events by age</li>
+</ul>
+</div>
+<div class="slide" id="declarative-ordsets">
+<h1>Declarative (ordsets)</h1>
+<pre class="light erlang literal-block">
+Add = fun ordsets:add_element/2,
+Empty = statebox:new(fun () -&gt; [] end),
+A = statebox:modify({Add, [a]}, Empty),
+B = statebox:modify({Add, [b]}, Empty),
+AB = statebox:merge([A, B]),
+statebox:value(AB) =:= [a, b].
+</pre>
+</div>
+<div class="slide" id="composable">
+<h1>Composable</h1>
+<pre class="light erlang literal-block">
+Empty = statebox_orddict:from_values([]),
+Union = fun statebox_orddict:f_union/2,
+A = statebox:modify([Union(following, [b]),
+                     Union(followers, [c])],
+                    Empty),
+B = statebox:modify([Union(following, [b]),
+                     Union(followers, [d])],
+                    Empty),
+AB = statebox:merge([A, B]),
+statebox:value(AB) =:= [{followers, [c, d]},
+                        {following, [b]}].
+</pre>
+</div>
+<div class="slide" id="statebox-example-1">
+<h1>Statebox Example [1]</h1>
+<pre class="light erlang literal-block">
+A     :: [kitten]
+[{1, Union([kitten])}]
+</pre>
+</div>
+<div class="slide" id="statebox-example-2">
+<h1>Statebox Example [2]</h1>
+<pre class="light erlang literal-block">
+A     :: [kitten]
+[{1, Union([kitten])}]
+
+B     :: [puppy]
+[{2, Union([puppy])}]
+</pre>
+</div>
+<div class="slide" id="statebox-example-3">
+<h1>Statebox Example [3]</h1>
+<pre class="light erlang literal-block">
+A     :: [kitten]
+[{1, Union([kitten])}]
+
+B     :: [puppy]
+[{2, Union([puppy])}]
+
+[A,B] :: [kitten, puppy]
+[{1, Union([kitten])},
+ {2, Union([puppy])}]
+</pre>
+</div>
+<div class="slide" id="statebox-merge">
+<h1>Statebox Merge</h1>
+<ul class="simple">
+<li>B is newer, so use its value as the basis</li>
+<li>Merge sort event queues</li>
+<li>Apply ops in order from the beginning</li>
+</ul>
+</div>
+<div class="slide" id="statebox-merge-1">
+<h1>Statebox Merge [1]</h1>
+<p>Use B's value (arbitrarily newest)</p>
+<pre class="light erlang literal-block">
+                               [puppy]
+
+Value = [puppy]
+</pre>
+</div>
+<div class="slide" id="statebox-merge-2">
+<h1>Statebox Merge [2]</h1>
+<p>Apply ops oldest to newest (T=1)</p>
+<pre class="light erlang literal-block">
+               union([kitten], [puppy])
+
+Value = [kitten, puppy]
+</pre>
+</div>
+<div class="slide" id="statebox-merge-3">
+<h1>Statebox Merge [3]</h1>
+<p>Apply ops oldest to newest (T=2)</p>
+<pre class="light erlang literal-block">
+union([puppy], union([kitten], [puppy]))
+
+Value = [kitten, puppy]
+</pre>
+</div>
+<div class="slide" id="statebox-riak-wrapper">
+<h1>statebox_riak wrapper</h1>
+<pre class="light erlang literal-block">
+%% bob → alice, bob → carol
+S = statebox_riak:new([{riakc_pb_socket, P},
+                       {expire_ms, 5000},
+                       {max_queue, 50}]),
+Union = fun statebox_orddict:f_union/2,
+statebox_riak:apply_bucket_ops(
+    &lt;&lt;&quot;users&quot;&gt;&gt;,
+    [{[&lt;&lt;&quot;alice&quot;&gt;&gt;, &lt;&lt;&quot;carol&quot;&gt;&gt;],
+      Union(followers, [bob])},
+     {[&lt;&lt;&quot;bob&quot;&gt;&gt;],
+      Union(following, [alice, carol])}],
+    S).
+</pre>
+</div>
+<div class="slide" id="restrictions">
+<h1>Restrictions</h1>
+<ul class="simple">
+<li>Operations must be repeatable (idempotent unary operation)</li>
+<li>Repeatable if and only if <tt class="docutils literal">F(V) = F(F(V))</tt></li>
+<li>Old operations in the queue are replayed in-order on merge,
+but seeded with newer data</li>
+</ul>
+</div>
+<div class="slide" id="repeatable-operations">
+<h1>Repeatable Operations</h1>
+<ul class="simple">
+<li>Most set operations</li>
+<li>Most dictionary operations</li>
+<li>NOT most list operations (ordered lists may be ok!)</li>
+<li>NOT most integer operations</li>
+</ul>
+</div>
+<div class="slide" id="non-repeatable-ops">
+<h1>Non-repeatable ops?</h1>
+<ul class="simple">
+<li>Many can be transformed to repeatable operations</li>
+<li><tt class="docutils literal">statebox_counter</tt> is one example</li>
+</ul>
+</div>
+<div class="slide" id="statebox-counter">
+<h1>statebox_counter</h1>
+<ul class="simple">
+<li>Represent a counter as an ordered list of events</li>
+<li><tt class="docutils literal"><span class="pre">[{{Timestamp,</span> Ident}, Delta}]</tt></li>
+<li><tt class="docutils literal">Ident</tt> is just a unique-ish identifier (node counter, random
+number, etc.)</li>
+<li>Well tested proof of concept, but not in production use</li>
+</ul>
+</div>
+<div class="slide" id="counter-optimizations">
+<h1>counter optimizations</h1>
+<ul class="simple">
+<li>Prevent unbounded growth by coalescing old events into a single
+event with a fixed <tt class="docutils literal">Ident</tt></li>
+<li>Events older than this are ignored</li>
+</ul>
+</div>
+<div class="slide" id="other-statebox-usage">
+<h1>Other statebox usage</h1>
+<ul class="simple">
+<li>achievements</li>
+<li>scorewad (via recordset)</li>
+</ul>
+</div>
+<div class="slide" id="achievements">
+<h1>achievements</h1>
+<ul class="simple">
+<li>Manages achievements earned in games</li>
+<li>orddict of <tt class="docutils literal">{Achievement, Timestamp}</tt></li>
+<li>Stores to two keys: <tt class="docutils literal">User</tt>, <tt class="docutils literal">User_Game</tt></li>
+</ul>
+</div>
+<div class="slide" id="achievements-orddict">
+<h1>achievements orddict</h1>
+<p>Store oldest entry for achievement.</p>
+<pre class="light erlang literal-block">
+f_store_min(Key, New) -&gt;
+    {fun ?MODULE:op_store_min/3, [Key, New]}.
+
+op_store_min(Key, New, D) -&gt;
+    orddict:update(
+        Key,
+        fun (Old) -&gt; min(Old, New) end,
+        New,
+        D).
+</pre>
+</div>
+<div class="slide" id="scorewad">
+<h1>scorewad</h1>
+<ul class="simple">
+<li>Manages high score boards for &gt; 15,000 games</li>
+<li>Keeps top 50 scores per game for day, week, month, all time</li>
+<li>Also stores scores per user for social leaderboards</li>
+<li>Built recordset to migrate some of this to riak + statebox</li>
+</ul>
+</div>
+<div class="slide" id="recordset">
+<h1>recordset</h1>
+<p>An optionally fixed-size ordered set of complex terms.</p>
+<ul class="simple">
+<li>User defined identity</li>
+<li>User defined sorting</li>
+<li>Optional and efficient fixed-sizedness</li>
+</ul>
+</div>
+<div class="slide" id="recordset-example-trivial">
+<h1>recordset example (trivial)</h1>
+<pre class="light erlang literal-block">
+Empty = recordset:new(fun erlang:'=:='/2,
+                      fun erlang:'&lt;'/2,
+                      [{max_size, 2}]),
+Full = lists:foldl(fun recordset:add/2,
+                   Empty,
+                   lists:seq(300, 400)),
+[399, 400] =:= recordset:to_list(Full).
+</pre>
+</div>
+<div class="slide" id="what-s-next">
+<h1>What's next?</h1>
+<ul class="simple">
+<li>statebox already does what we want it to</li>
+<li>More helper modules or projects will be added over time</li>
+</ul>
+</div>
+<div class="slide" id="better-than-statebox">
+<h1>Better than Statebox?</h1>
+<ul class="simple">
+<li>We'd all be better off if this kind of data structure was built-in
+to the database</li>
+<li>Higher level APIs! KV is fine but I want more from my database</li>
+<li>Redis-like features, but concurrent and multi-node</li>
+</ul>
+</div>
+<div class="slide" id="why-riak-could-do-it-better">
+<h1>Why Riak could do it better</h1>
+<ul class="simple">
+<li>Simple clients: DB can reconcile state before return</li>
+<li>Efficiency: Can store less data (ring state, forced serialization, vclocks)</li>
+</ul>
+</div>
+<div class="slide" id="questions">
+<h1>Questions?</h1>
+<ul class="simple">
+<li>Twitter: <a class="reference external" href="http://twitter.com/etrepum">&#64;etrepum</a></li>
+<li>Mochi Media: <a class="reference external" href="http://www.mochimedia.com/">www.mochimedia.com</a></li>
+<li>Slides: <a class="reference external" href="http://etrepum.github.com/statebox_qconsf_2011">etrepum.github.com/statebox_qconsf_2011</a></li>
+<li><a class="reference external" href="http://git.io/statebox">git.io/statebox</a></li>
+<li><a class="reference external" href="http://git.io/statebox_riak">git.io/statebox_riak</a></li>
+<li><a class="reference external" href="http://git.io/recordset">git.io/recordset</a></li>
+</ul>
+</div>
+</div>
+</body>
+</html>
